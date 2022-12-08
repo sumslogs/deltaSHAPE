@@ -34,7 +34,7 @@ from itertools import groupby
 import warnings
 
 def open_map(filename, front, back):
-    data = open(filename, "rU")
+    data = open(filename, "r")
     datalines = data.readlines()
     data.close()
     if len(datalines[0].split()) < 4:
@@ -75,8 +75,8 @@ def smooth(data,err,pad):
         # use numpy masked array to calculate average without including no-data (nan) nucleotides.
         new_data.append(np.mean(np.ma.MaskedArray([j for j in data[i-pad:i+pad+1]], np.isnan([j for j in data[i-pad:i+pad+1]]))))
         
-        # use stats.nanmean to calculate average without including no-data (nan) nucleotides. This causes long_scalars runtime warnings.
-        #new_data.append(stats.nanmean([j for j in data[i-pad:i+pad+1] if np.isnan(j) != True]))
+        # use np.nanmean to calculate average without including no-data (nan) nucleotides. This causes long_scalars runtime warnings.
+        #new_data.append(np.nanmean([j for j in data[i-pad:i+pad+1] if np.isnan(j) != True]))
         errs = np.array(err[i-pad:i+pad+1])
         squerrs = np.power([j for j in errs if np.isnan(j) != True], 2)
         total = np.sum(squerrs)
@@ -106,66 +106,14 @@ def z_factor(data1, data2, err1, err2, factor=1.96):
     return z_factors
 
 def calc_zScores(diffs):
-    mean = stats.nanmean(diffs)
-    sigma = stats.nanstd(diffs)
+    mean = np.nanmean(diffs)
+    sigma = np.nanstd(diffs)
     # calc Z-score
     z_scores = (diffs - mean) / sigma
     return np.array(z_scores)
 
 
-if __name__ == '__main__':
-    
-    #############################################
-    ## Set up arguments #########################
-    #############################################
-    
-    # pre-parse the arguments so that argparse doesn't interpret negative numbers (for y-min) as option flags.
-    for i, arg in enumerate(sys.argv):
-      if (arg[0] == '-') and arg[1].isdigit():
-          sys.argv[i] = ' ' + arg
-    
-    # parse the arguments
-    parse = argparse.ArgumentParser(
-        description="deltaSHAPE computes statistically significant changes in SHAPE-MaP reactivity between two conditions. See README file for further details and file descriptions.", 
-        epilog="deltaSHAPE v0.91 by Matt Smola ( matt.smola@gmail.com )",
-        add_help=False)
-    #parse.negative_number_matcher = _re.compile(r'^-(\d+\.?|\d*\.\d+)([eE][+\-]?\d+)?$')
-    
-    required = parse.add_argument_group('Required files', 'These files are required in order to run deltaSHAPE analysis.')
-    required.add_argument('mapFile1', type=str, help='SHAPE-MaP .map file')
-    required.add_argument('mapFile2', type=str, help='SHAPE-MaP .map file, values in this file will be subtracted from those in mapFile1')
-    
-    data_opt = parse.add_argument_group('Data manipulation', 'Options to specify how SHAPE-MaP data are manipulated and analyzed.')
-    data_opt.add_argument('--mask5', type=int, default=0, help="Specify the number of nucleotides at the 5' end to ignore. Default: 0")
-    data_opt.add_argument('--mask3', type=int, default=0, help="Specify the number of nucleotides at the 3' end to ignore. Default: 0")
-    data_opt.add_argument('-p', '--pad', type=int, default=1, help='Indicate the smoothing window size. Window = 2*pad+1. To turn off smoothing, set PAD = 0. Default: 1')
-    data_opt.add_argument('-z', '--Zcoeff', type=float, default=1.96, help='Ajust the Z-factor stringency by changing the equation coefficient. See the README for details. Default: 1.96')
-    data_opt.add_argument('-t', '--Zthresh', type=float, default=0, help='Adjust the Z-factor stringency by changing the cutoff threshold. See the README for details. Default: 0')
-    data_opt.add_argument('-s', '--SSthresh', type=float, default=1, help='Set the cutoff threshold of standard score filtering. Default: 1.0')
-    data_opt.add_argument('-f', '--FindSite', type=str, default='2,3', help='Comma-separated pair of numbers indicating the window pad size and number of required hits when finding binding sites. Default settings look for 3+ nucleotides within a 5-nucleotide window. See the README for details. Default: 2,3')
-    
-    out_opt = parse.add_argument_group('Output', 'Options specifying plotting and output file details.')
-    out_opt.add_argument('-o', '--out', type=str, default="differences.txt", help='Name and location of output file to be written. Default: ./differences.txt')
-    out_opt.add_argument('--magrank', action='store_true', help='Sort output file by decreasing deltaSHAPE magnitude. Default: OFF')
-    out_opt.add_argument('--all', action='store_true', help='Output data for all nucleotides. Insignificant changes are listed as zero. Default: OFF')
-    out_opt.add_argument('--pdf', action='store_true', help='Save plot as PDF. If output file is given, PDF will have same prefix. Default: OFF')
-    out_opt.add_argument('--noshow', action='store_true', help='Generate the plot but do not show it. Typically used with --pdf. Default: display plot')
-    out_opt.add_argument('--noplot', action='store_true', help='Skip plotting completely. Default: OFF')
-    out_opt.add_argument('--dots', action='store_true', help='Plot markers indicating nucleotides that pass Z-factor and standard score filtering. This can get unweildy for large RNAs (>1000). Standard score (open) dots are plotted above Z-factor (filled) dots. Default: OFF')
-    out_opt.add_argument('--Zdots', action='store_true', help='Plot markers indicating only nucleotides that pass Z-factor filtering. Default: OFF')
-    out_opt.add_argument('--SSdots', action='store_true', help='Plot markers indicating only nucleotides that pass standard score filtering. Default: OFF')
-    out_opt.add_argument('--colorfill', action='store_true', help='Highlight deltaSHAPE sites with coloration beneath the plot line for "prettier" figures. Default: OFF')
-    out_opt.add_argument('--ymin', type=float, default=-999, help='Set plot y-axis minimum. Default: Determined automatically')
-    out_opt.add_argument('--ymax', type=float, default=-999, help='Set plot y-axis maximum. Default: Determined automatically')
-    out_opt.add_argument('--xmin', type=float, default=-999, help='Set plot x-axis minimum. Default: Determined automatically')
-    out_opt.add_argument('--xmax', type=float, default=-999, help='Set plot x-axis maximum. Default: Determined automatically')
-    
-    help_opt = parse.add_argument_group('Help')
-    help_opt.add_argument('-h', '--help', action="help", help="show this help message and exit")
-    args = parse.parse_args()
-    #############################################
-    
-    
+def invoke(args):
     #######################################################
     ## Set up and check analysis parameters ###############
     #######################################################
@@ -257,7 +205,7 @@ if __name__ == '__main__':
     
     sigdiff = []
     for i in range(site_pad, len(diff)-site_pad):
-        win = range(i-site_pad ,i+site_pad+1)
+        win = list(range(i-site_pad ,i+site_pad+1))
         count = 0
         maybes = []
         for j in win:
@@ -274,10 +222,10 @@ if __name__ == '__main__':
     # this is mostly for figuring which regions to highlight in the plot.
     
     pos_consec, neg_consec = [], []
-    for k, g in groupby(enumerate([i for i in sigdiff if s_diff[i] >= 0]), lambda (i,x):i-x):
-            pos_consec.append(map(itemgetter(1), g))
-    for k, g in groupby(enumerate([i for i in sigdiff if s_diff[i] < 0]), lambda (i,x):i-x):
-            neg_consec.append(map(itemgetter(1), g))
+    for k, g in groupby(enumerate([i for i in sigdiff if s_diff[i] >= 0]), (lambda i_x: i_x[0]-i_x[1])):
+            pos_consec.append(list(map(itemgetter(1), g)))
+    for k, g in groupby(enumerate([i for i in sigdiff if s_diff[i] < 0]), (lambda i_x1: i_x1[0]-i_x1[1])):
+            neg_consec.append(list(map(itemgetter(1), g)))
 
     pos_shade_bits, pos_x_bits = [], []
     pos_span = []
@@ -316,7 +264,7 @@ if __name__ == '__main__':
         import matplotlib.pyplot as plt
     
         plt.figure(figsize=(11,4))
-        x = range(1,len(s_diff)+1)
+        x = list(range(1,len(s_diff)+1))
         
         plt.plot(x, s_diff, drawstyle='steps-mid', color='black')
         plt.axhline(0, color='black')
@@ -357,15 +305,15 @@ if __name__ == '__main__':
         
         # set ymin and ymax automatically from data, or from option flags.
         if args.ymin == -999:
-            y_min = min(filter(lambda x: np.isnan(x)==False, s_diff))-0.25
+            y_min = min([x for x in s_diff if np.isnan(x)==False])-0.25
         else:
             y_min = args.ymin
 
         if args.ymax == -999:
-            y_max = max(filter(lambda x: np.isnan(x)==False, s_diff))+0.25
+            y_max = max([x for x in s_diff if np.isnan(x)==False])+0.25
             # adjust y_max if dots are involved.    
             if dots:
-                y_max = max(filter(lambda x: np.isnan(x)==False, s_diff))+0.6
+                y_max = max([x for x in s_diff if np.isnan(x)==False])+0.6
         else:
             y_max = args.ymax
         
@@ -401,7 +349,7 @@ if __name__ == '__main__':
     
     if args.all:
         # get data for all nucleotides not already in data_out, but replace s_diff[i] with zero.
-        for i in filter(lambda x: x+1 not in [j[0] for j in data_out], range(len(seq1))):
+        for i in [x for x in range(len(seq1)) if x+1 not in [j[0] for j in data_out]]:
             data_out.append([i+1, seq1[i], 0, z_factors[i], z_scores[i], s_data1[i], s_data2[i], diff[i], data1[i], data2[i]])
     
     # write the file
@@ -424,3 +372,54 @@ if __name__ == '__main__':
         # write the output
         o.write(('\t').join(map(str, i))+"\n")
     o.close()
+
+def form_args(passed_args=None):
+    parse = argparse.ArgumentParser(
+        description="deltaSHAPE computes statistically significant changes in SHAPE-MaP reactivity between two conditions. See README file for further details and file descriptions.", 
+        epilog="deltaSHAPE v0.91 by Matt Smola ( matt.smola@gmail.com )",
+        add_help=False)
+    #parse.negative_number_matcher = _re.compile(r'^-(\d+\.?|\d*\.\d+)([eE][+\-]?\d+)?$')
+
+    #required = parse.add_argument_group('Required files', 'These files are required in order to run deltaSHAPE analysis.')
+
+    data_opt = parse.add_argument_group('Data manipulation', 'Options to specify how SHAPE-MaP data are manipulated and analyzed.')
+    data_opt.add_argument('--mapFile1', type=str, default='', help='SHAPE-MaP .map file')
+    data_opt.add_argument('--mapFile2', type=str, default='', help='SHAPE-MaP .map file, values in this file will be subtracted from those in mapFile1')
+    data_opt.add_argument('--mask5', type=int, default=0, help="Specify the number of nucleotides at the 5' end to ignore. Default: 0")
+    data_opt.add_argument('--mask3', type=int, default=0, help="Specify the number of nucleotides at the 3' end to ignore. Default: 0")
+    data_opt.add_argument('-p', '--pad', type=int, default=1, help='Indicate the smoothing window size. Window = 2*pad+1. To turn off smoothing, set PAD = 0. Default: 1')
+    data_opt.add_argument('-z', '--Zcoeff', type=float, default=1.96, help='Ajust the Z-factor stringency by changing the equation coefficient. See the README for details. Default: 1.96')
+    data_opt.add_argument('-t', '--Zthresh', type=float, default=0, help='Adjust the Z-factor stringency by changing the cutoff threshold. See the README for details. Default: 0')
+    data_opt.add_argument('-s', '--SSthresh', type=float, default=1, help='Set the cutoff threshold of standard score filtering. Default: 1.0')
+    data_opt.add_argument('-f', '--FindSite', type=str, default='2,3', help='Comma-separated pair of numbers indicating the window pad size and number of required hits when finding binding sites. Default settings look for 3+ nucleotides within a 5-nucleotide window. See the README for details. Default: 2,3')
+
+    out_opt = parse.add_argument_group('Output', 'Options specifying plotting and output file details.')
+    out_opt.add_argument('-o', '--out', type=str, default="differences.txt", help='Name and location of output file to be written. Default: ./differences.txt')
+    out_opt.add_argument('--magrank', action='store_true', help='Sort output file by decreasing deltaSHAPE magnitude. Default: OFF')
+    out_opt.add_argument('--all', action='store_true', help='Output data for all nucleotides. Insignificant changes are listed as zero. Default: OFF')
+    out_opt.add_argument('--pdf', action='store_true', help='Save plot as PDF. If output file is given, PDF will have same prefix. Default: OFF')
+    out_opt.add_argument('--noshow', action='store_true', help='Generate the plot but do not show it. Typically used with --pdf. Default: display plot')
+    out_opt.add_argument('--noplot', action='store_true', help='Skip plotting completely. Default: OFF')
+    out_opt.add_argument('--dots', action='store_true', help='Plot markers indicating nucleotides that pass Z-factor and standard score filtering. This can get unweildy for large RNAs (>1000). Standard score (open) dots are plotted above Z-factor (filled) dots. Default: OFF')
+    out_opt.add_argument('--Zdots', action='store_true', help='Plot markers indicating only nucleotides that pass Z-factor filtering. Default: OFF')
+    out_opt.add_argument('--SSdots', action='store_true', help='Plot markers indicating only nucleotides that pass standard score filtering. Default: OFF')
+    out_opt.add_argument('--colorfill', action='store_true', help='Highlight deltaSHAPE sites with coloration beneath the plot line for "prettier" figures. Default: OFF')
+    out_opt.add_argument('--ymin', type=float, default=-999, help='Set plot y-axis minimum. Default: Determined automatically')
+    out_opt.add_argument('--ymax', type=float, default=-999, help='Set plot y-axis maximum. Default: Determined automatically')
+    out_opt.add_argument('--xmin', type=float, default=-999, help='Set plot x-axis minimum. Default: Determined automatically')
+    out_opt.add_argument('--xmax', type=float, default=-999, help='Set plot x-axis maximum. Default: Determined automatically')
+
+    help_opt = parse.add_argument_group('Help')
+    help_opt.add_argument('-h', '--help', action="help", help="show this help message and exit")
+    args = parse.parse_args(other_args)
+    return args
+
+if __name__ == '__main__':
+    # pre-parse the arguments so that argparse doesn't interpret negative numbers (for y-min) as option flags.
+    for i, arg in enumerate(sys.argv):
+        if (arg[0] == '-') and arg[1].isdigit():
+            sys.argv[i] = ' ' + arg
+
+    args = form_args(sys.argv)
+    invoke(args)
+    
